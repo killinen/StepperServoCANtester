@@ -1,6 +1,8 @@
 # StepperServoCANtester
 Simple GUI program for testing StepperServoCAN motor
 
+![20230322_102941](https://user-images.githubusercontent.com/37126045/227361324-ecf9a5af-96b3-4739-9827-1915c412b687.jpg)
+
 This program use Linux SocketCAN for interfacing with dzids StepperServoCAN board/motor. You have to bring up your CAN interface that is connected to StepperServoCAN board.
 You can test the program with SocketCANs virtual interface (vcan). Start the program, if only one CAN interface is up the program will establish connection to that, but if several 
 intrerfaces is found it will prompt a question to which interface to connect.
