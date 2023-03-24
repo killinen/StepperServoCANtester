@@ -19,6 +19,16 @@ from tkinter import messagebox
 import cantools
 import can
 
+# Constants
+MIN_TORQUE = -16
+MAX_TORQUE = 16
+MIN_ANGLE = -4096
+MAX_ANGLE = 4096
+
+##########################################################################
+############################### FUNCTIONS ################################
+##########################################################################
+
 # This function checks if the operating system is Linux. If not, it prints an error message and aborts the program.
 def check_linux():
     """
@@ -95,19 +105,186 @@ def connect_to_can_interface():
     
     return can_bus
 
-# Test if this is run on Linux, otherwise the program will not work
-check_linux()
 
-# Search for CAN interface and connect to it
-can_bus = connect_to_can_interface()
+# # Function to update torque and angle from widget values
+# def update_values():
+#     global torque, angle
+
+#     torque_str = torque_widget.get()
+#     if torque_str.lstrip('-').isdigit():
+#         check_torque = int(torque_str)      # check_torque is used for intermediate value so if the update_message() -thread is checking torque value, it won't be out of .dbc bound
+#         if check_torque < MIN_TORQUE or check_torque > MAX_TORQUE:
+#             messagebox.showerror("Error", "Torque value should be between -16 and 16")
+#         else:
+#             torque = check_torque
+#     else:
+#         torque = 0
+
+#     angle_str = angle_widget.get()
+#     if angle_str.lstrip('-').isdigit():
+#         check_angle = int(angle_str)        # check_angle is used for intermediate value so if the update_message() -thread is checking angle value, it won't be out of .dbc bound
+#         if check_angle < MIN_ANGLE or check_angle > MAX_ANGLE:
+#             messagebox.showerror("Error", "Torque value should be between -16 and 16")
+#         else:
+#             angle = check_angle
+#     else:
+#         angle = 0
+
+def validate_input(input_str, min_value, max_value):
+    try:
+        # Try to convert the input string to an integer
+        value = int(input_str)
+
+        # Check if the integer value is within the specified range
+        if min_value <= value <= max_value:
+            return value  # If so, return the integer value
+    except ValueError:
+        # If there was an error converting to an integer, or the value is outside the range,
+        # catch the exception and do nothing
+        pass
+
+    # If we get here, the input was invalid, so return None
+    return None
+
+
+# Function to update torque and angle from widget values
+def update_values():
+    # Use global variables to update torque and angle values
+    global torque, angle
+
+    # Get the torque input string from the widget
+    torque_str = torque_widget.get()
+
+    # Check if the input string represents a valid integer within the torque range
+    torque = validate_input(torque_str, MIN_TORQUE, MAX_TORQUE)
+
+    # If the input is invalid, set the torque to zero and show an error message
+    if torque is None:
+        torque = 0
+        messagebox.showerror("Error", "Torque value should be between -16 and 16")
+
+    # Get the angle input string from the widget
+    angle_str = angle_widget.get()
+
+    # Check if the input string represents a valid integer within the angle range
+    angle = validate_input(angle_str, MIN_ANGLE, MAX_ANGLE)
+
+    # If the input is invalid, set the angle to zero and show an error message
+    if angle is None:
+        angle = 0
+        messagebox.showerror("Error", "Angle value should be between -180 and 180")
+
+
+# Function to encode and send the CAN message
+def update_message():
+    global msg, data, counter, torque, angle
+
+    # msg = db.get_message_by_name('STEERING_COMMAND')
+
+    # Calculate new counter value
+    counter = counter + 1
+    if counter == 16:
+        counter = 0
+
+    # Encode data to STEERING_COMMAND data field
+    data = msg.encode({
+        'STEER_TORQUE': torque,
+        'STEER_ANGLE': angle,
+        'STEER_MODE': steer_mode_widget.get_value(),
+        'COUNTER': counter & 0xF,
+        'CHECKSUM': 0
+    })
+
+    # Calculate checksum for the STEERING_COMMAND message
+    lent = len(data)
+    checksum = msg_calc_checksum_8bit(data, lent, 558)
+
+    # Encode the data field with new checksum
+    data = msg.encode({
+        'STEER_TORQUE': torque,
+        'STEER_ANGLE': angle,
+        'STEER_MODE': steer_mode_widget.get_value(),
+        'COUNTER': counter & 0xF,
+        'CHECKSUM': checksum
+    })
+
+def send_message():
+    global can_enabled
+
+    last_exec_time = time.monotonic()  # current time in seconds since some arbitrary reference point
+    loop_count = 0
+    last_print_time = time.monotonic()
+    while can_enabled:
+        # Create a message using the "torque" dbc object
+        message = can.Message(arbitration_id=msg.frame_id, data=data, is_extended_id=False)
+ 
+        # Update the STEERING_COMMAND message values and send to the bus
+        update_message()
+        can_bus.send(message)
+
+        # Wait for the remaining time until the next 10 ms interval
+        elapsed_time = time.monotonic() - last_exec_time
+        remaining_time = max(0.01 - elapsed_time, 0)
+        time.sleep(remaining_time)
+
+        # Update last execution time and loop count
+        last_exec_time += 0.01
+        loop_count += 1
+
+        # Print send frequency every second
+        if time.monotonic() - last_print_time >= 1:
+            loop_frequency = loop_count / (time.monotonic() - last_print_time)
+            print(f"CAN send frequency: {loop_frequency:.2f} Hz")
+            loop_count = 0
+            last_print_time = time.monotonic()
+
+
+# Define a class named SteerModeWidget
+class SteerModeWidget:
+    def __init__(self, master, label_text, options):
+        # Create an instance variable of type tk.IntVar to store the selected value
+        self.var = tk.IntVar()
+        
+        # Create a Label widget with the specified label text and place it in the parent widget using the grid geometry manager
+        self.label = tk.Label(master, text=label_text)
+        self.label.grid(row=2, column=0, sticky="w")  # set sticky to "w" for left alignment
+        
+        # Create a set of radio buttons, one for each option in the options list
+        self.buttons = []
+        for idx, option in enumerate(options):
+            # Create a Radiobutton widget with the specified text and value, and associate it with the var instance variable
+            button = tk.Radiobutton(
+                master, text=option[1], variable=self.var, value=option[0]
+            )
+            
+            # Place the radio button in the parent widget using the grid geometry manager, and set sticky to "w" for left alignment
+            button.grid(row=2+idx, column=1, sticky="w")
+            
+            # Add the radio button to the list of buttons
+            self.buttons.append(button)
+
+    def get_value(self):
+        # Return the selected value as an integer by calling the get method on the var instance variable
+        return self.var.get()
+
+
+
+##########################################################################
+############################ DEFINE VARIABLES ############################
+##########################################################################
+
 
 # Flag to control the CAN traffic
 can_enabled = True
 
+# Define Steer Command msg counter value
 counter = 0
 
-# Load the .dbc file
-#db = cantools.database.load_file('/home/goran/Downloads/BMW_E39_OP.dbc')
+# Define global variables for torque and angle
+torque = 0
+angle = 0
+
+# Load the .dbc file and define it's variables
 db = cantools.database.load_file('./ocelot_controls.dbc')
 
 msg = db.get_message_by_name('STEERING_COMMAND')
@@ -120,97 +297,16 @@ data = msg.encode({
     'CHECKSUM': 0
 })
 
-# Define global variables for torque and angle
-torque = 0
-angle = 0
 
-# Function to update torque and angle from widget values
-def update_values():
-    global torque, angle
+##########################################################################
+############################### MAIN STUFF ###############################
+##########################################################################
 
-    torque_str = torque_widget.get()
-    if torque_str.lstrip('-').isdigit():
-        check_torque = int(torque_str)      # check_torque is used for intermediate value so if the update_message() -thread is checking torque value, it won't be out of .dbc bound
-        # print(check_torque)
-        if check_torque < -16 or check_torque > 16:
-            messagebox.showerror("Error", "Torque value should be between -16 and 16")
-        else:
-            torque = check_torque
-    else:
-        torque = 0
+# Test if this is run on Linux, otherwise the program will not work
+check_linux()
 
-    angle_str = angle_widget.get()
-    if angle_str.lstrip('-').isdigit():
-        check_angle = int(angle_str)        # check_angle is used for intermediate value so if the update_message() -thread is checking angle value, it won't be out of .dbc bound
-        print(angle)
-        if check_angle < -4096 or check_angle > 4096:
-            messagebox.showerror("Error", "Torque value should be between -16 and 16")
-        else:
-            angle = check_angle
-    else:
-        angle = 0
-
-
-# Function to encode and send the CAN message
-def update_message():
-    global msg, data, counter, torque, angle
-
-    msg = db.get_message_by_name('STEERING_COMMAND')
-
-    counter = counter + 1
-    if counter == 16:
-        counter = 0
-
-    data = msg.encode({
-        'STEER_TORQUE': torque,
-        'STEER_ANGLE': angle,
-        'STEER_MODE': steer_mode_widget.get_value(),
-        'COUNTER': counter & 0xF,
-        'CHECKSUM': 0
-    })
-
-    lent = len(data)
-    checksum = msg_calc_checksum_8bit(data, lent, 558)
-
-    data = msg.encode({
-        'STEER_TORQUE': torque,
-        'STEER_ANGLE': angle,
-        'STEER_MODE': steer_mode_widget.get_value(),
-        'COUNTER': counter & 0xF,
-        'CHECKSUM': checksum
-    })
-
-def send_message():
-    
-    global can_enabled
-
-    #can_bus = can.interface.Bus('vcan0', bustype='socketcan')
-    while can_enabled:
-        # Create a message using the "torque" dbc object
-        message = can.Message(arbitration_id=msg.frame_id, data=data, is_extended_id=False)
- 
-        update_message()
-        can_bus.send(message)
-
-        # Sleep for 10ms
-        time.sleep(0.01)
-
-class SteerModeWidget:
-    def __init__(self, master, label_text, options):
-        self.var = tk.IntVar()
-        self.label = tk.Label(master, text=label_text)
-        self.label.grid(row=2, column=0, sticky="w")  # set sticky to "w" for left alignment
-        self.buttons = []
-        for idx, option in enumerate(options):
-            button = tk.Radiobutton(
-                master, text=option[1], variable=self.var, value=option[0]
-            )
-            button.grid(row=2+idx, column=1, sticky="w")
-            self.buttons.append(button)
-
-    def get_value(self):
-        return self.var.get()
-
+# Search for CAN interface and connect to it
+can_bus = connect_to_can_interface()
 
 # Create the GUI window
 window = tk.Tk()
@@ -227,12 +323,14 @@ send_button = tk.Button(window, text='Update Torque/Angle value', command=update
 # Create labels for the widgets
 torque_label = tk.Label(window, text="Steer Torque:       ")
 angle_label = tk.Label(window, text="Steer Angle:       ")
-counter_pedal_label = tk.Label(window, text="Counter:")
-checksum_pedal_label = tk.Label(window, text="Checksum:")
 
-# Add a widget for each piece of data in the message
-torque_widget = tk.Entry(window)
-angle_widget = tk.Entry(window)
+# Set the initial values for torque and angle
+initial_torque = 0
+initial_angle = 0
+
+# Create the torque and angle widget with an initial value
+torque_widget = tk.Entry(window, textvariable=tk.StringVar(value=str(initial_torque)))
+angle_widget = tk.Entry(window, textvariable=tk.StringVar(value=str(initial_angle)))
 
 # Place the labels and widgets using grid
 torque_label.grid(row=0, column=0, sticky="w")  # set sticky to "w" for left alignment
@@ -249,8 +347,10 @@ STEER_MODE_OPTIONS = [
 ]
 steer_mode_widget = SteerModeWidget(window, "Steer Mode:  ", STEER_MODE_OPTIONS)
 
+# Create Update Torque/Angle value button to gui
 send_button.grid(row=7, column=0, columnspan=2)
 
+# Function for closing the program elegantly
 def on_closing():
     global can_enabled
     can_enabled = False
