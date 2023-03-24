@@ -292,7 +292,7 @@ window = tk.Tk()
 window.title("StepperServoCAN Tester")
 
 # Set window width and height to custom values
-window.geometry("360x230")  # Set window width to 400 pixels and height to 300 pixels
+window.geometry("360x235")  # Set window width to 400 pixels and height to 300 pixels
 
 # Create labels for the widgets
 can_label = tk.Label(window, text="CAN interface:       ")
