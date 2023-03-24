@@ -33,7 +33,7 @@ This is a simple GUI program that can be used to test the StepperServoCAN motor.
 4. Run the program: 
 
     ```
-    python3 StepperServoCAN_GUI.py
+    python3 StepperServoCANtester.py
     ```
 
 5. The program will automatically detect and display a list of available CAN interfaces to the user. In case multiple interfaces are available, the user will be prompted to select one.
