@@ -63,5 +63,5 @@ This is a simple GUI program that can be used to test the StepperServoCAN motor.
   
 - You can check for available CAN interfaces that are UP in Linux with following command:
   ```
-  ip -details -brief link | grep can | grep -i 'state up\|state unknown'
+  ip -details -brief link | grep can | grep UP
   ```
