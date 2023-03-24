@@ -25,9 +25,11 @@ MAX_TORQUE = 16
 MIN_ANGLE = -4096
 MAX_ANGLE = 4096
 
+
 ##########################################################################
 ############################### FUNCTIONS ################################
 ##########################################################################
+
 
 # This function checks if the operating system is Linux. If not, it prints an error message and aborts the program.
 def check_linux():
@@ -102,33 +104,10 @@ def connect_to_can_interface():
     # Connect to selected CAN interface
     print(f"Connected to CAN interface {interface}")
     can_bus = can.interface.Bus(interface, bustype='socketcan')
+
+    print(can_bus)
     
     return can_bus
-
-
-# # Function to update torque and angle from widget values
-# def update_values():
-#     global torque, angle
-
-#     torque_str = torque_widget.get()
-#     if torque_str.lstrip('-').isdigit():
-#         check_torque = int(torque_str)      # check_torque is used for intermediate value so if the update_message() -thread is checking torque value, it won't be out of .dbc bound
-#         if check_torque < MIN_TORQUE or check_torque > MAX_TORQUE:
-#             messagebox.showerror("Error", "Torque value should be between -16 and 16")
-#         else:
-#             torque = check_torque
-#     else:
-#         torque = 0
-
-#     angle_str = angle_widget.get()
-#     if angle_str.lstrip('-').isdigit():
-#         check_angle = int(angle_str)        # check_angle is used for intermediate value so if the update_message() -thread is checking angle value, it won't be out of .dbc bound
-#         if check_angle < MIN_ANGLE or check_angle > MAX_ANGLE:
-#             messagebox.showerror("Error", "Torque value should be between -16 and 16")
-#         else:
-#             angle = check_angle
-#     else:
-#         angle = 0
 
 def validate_input(input_str, min_value, max_value):
     try:
@@ -258,7 +237,7 @@ class SteerModeWidget:
             )
             
             # Place the radio button in the parent widget using the grid geometry manager, and set sticky to "w" for left alignment
-            button.grid(row=2+idx, column=1, sticky="w")
+            button.grid(row=3+idx, column=1, sticky="w")
             
             # Add the radio button to the list of buttons
             self.buttons.append(button)
@@ -266,7 +245,6 @@ class SteerModeWidget:
     def get_value(self):
         # Return the selected value as an integer by calling the get method on the var instance variable
         return self.var.get()
-
 
 
 ##########################################################################
@@ -302,6 +280,7 @@ data = msg.encode({
 ############################### MAIN STUFF ###############################
 ##########################################################################
 
+
 # Test if this is run on Linux, otherwise the program will not work
 check_linux()
 
@@ -315,14 +294,18 @@ window = tk.Tk()
 window.title("StepperServoCAN Tester")
 
 # Set window width and height to custom values
-window.geometry("360x210")  # Set window width to 400 pixels and height to 300 pixels
-
-# Add a button to send the message
-send_button = tk.Button(window, text='Update Torque/Angle value', command=update_values)
+window.geometry("360x230")  # Set window width to 400 pixels and height to 300 pixels
 
 # Create labels for the widgets
+can_label = tk.Label(window, text="CAN interface:       ")
 torque_label = tk.Label(window, text="Steer Torque:       ")
 angle_label = tk.Label(window, text="Steer Angle:       ")
+
+# Strip out selected CAN interface name from can_bus
+can_value = str(can_bus).split("'")[1::2][0].upper()
+
+# Create the widget to display the CAN interface value
+can_widget = tk.Label(window, text=can_value)
 
 # Set the initial values for torque and angle
 initial_torque = 0
@@ -332,12 +315,6 @@ initial_angle = 0
 torque_widget = tk.Entry(window, textvariable=tk.StringVar(value=str(initial_torque)))
 angle_widget = tk.Entry(window, textvariable=tk.StringVar(value=str(initial_angle)))
 
-# Place the labels and widgets using grid
-torque_label.grid(row=0, column=0, sticky="w")  # set sticky to "w" for left alignment
-torque_widget.grid(row=0, column=1, sticky="w")
-angle_label.grid(row=1, column=0, sticky="w")  # set sticky to "w" for left alignment
-angle_widget.grid(row=1, column=1, sticky="w")
-
 # Add SteerModeWidget for the Steer Mode option
 STEER_MODE_OPTIONS = [
     (0, "Off - instant 0 torque"),
@@ -345,10 +322,20 @@ STEER_MODE_OPTIONS = [
     (2, "RelativeControl"),
     (3, "SoftOff - ramp torque to 0 in 1s")
 ]
+
 steer_mode_widget = SteerModeWidget(window, "Steer Mode:  ", STEER_MODE_OPTIONS)
 
-# Create Update Torque/Angle value button to gui
-send_button.grid(row=7, column=0, columnspan=2)
+# Add a button to update torque/angle values
+send_button = tk.Button(window, text='Update Torque/Angle value', command=update_values)
+
+# Place the labels and widgets using grid
+can_label.grid(row=0, column=0, sticky="w")  # set sticky to "w" for left alignment
+can_widget.grid(row=0, column=1, sticky="w")
+torque_label.grid(row=1, column=0, sticky="w")  # set sticky to "w" for left alignment
+torque_widget.grid(row=1, column=1, sticky="w")
+angle_label.grid(row=2, column=0, sticky="w")  # set sticky to "w" for left alignment
+angle_widget.grid(row=2, column=1, sticky="w")
+send_button.grid(row=8, column=0, columnspan=2)
 
 # Function for closing the program elegantly
 def on_closing():
