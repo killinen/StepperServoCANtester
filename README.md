@@ -23,7 +23,7 @@ This is a simple GUI program that can be used to test the StepperServoCAN motor.
 2. Install the required libraries:
 
     ```
-    pip install tkinter cantools python-can
+    pip3 install tkinter cantools python-can
     ```
   
 3. Connect the StepperServoCAN motor to the computer via CAN interface.
