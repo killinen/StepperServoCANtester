@@ -105,8 +105,6 @@ def connect_to_can_interface():
     print(f"Connected to CAN interface {interface}")
     can_bus = can.interface.Bus(interface, bustype='socketcan')
 
-    print(can_bus)
-    
     return can_bus
 
 def validate_input(input_str, min_value, max_value):
