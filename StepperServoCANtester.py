@@ -121,6 +121,11 @@ def connect_to_can_interface(interface):
 
     return can_bus
 
+def interface_selected(event):
+    # Run the connect_to_can_interface function when a new option is selected
+    interface = selected_backend
+    connect_to_can_interface(interface)
+
 def validate_input(input_str, min_value, max_value):
     try:
         # Try to convert the input string to an integer
@@ -136,7 +141,6 @@ def validate_input(input_str, min_value, max_value):
 
     # If we get here, the input was invalid, so return None
     return None
-
 
 # Function to update torque and angle from widget values
 def update_values():
@@ -164,7 +168,6 @@ def update_values():
     if angle is None:
         angle = 0
         messagebox.showerror("Error", "Angle value should be between -180 and 180")
-
 
 # Function to encode and send the CAN message
 def update_message():
@@ -301,19 +304,18 @@ window = tk.Tk()
 window.title("StepperServoCAN Tester")
 
 # Set window width and height to custom values
-window.geometry("360x260")  # Set window width and height
+window.geometry("360x250")  # Set window width and height
 
 # Create labels for the widgets
 selected_backend = tk.StringVar(window)
 selected_backend.set('pcan') #default
 
-can_interface_selector = ttk.OptionMenu(window, selected_backend, selected_backend.get(), *sorted(can.interfaces.VALID_INTERFACES))
-can_interface_connect = tk.Button(window, text="Connect", command=lambda:connect_to_can_interface(selected_backend))
+can_interface_selector = ttk.Combobox(window, values=[*sorted(can.interfaces.VALID_INTERFACES)], textvariable=selected_backend)
+can_interface_selector.bind("<<ComboboxSelected>>", interface_selected)
 
 can_label = tk.Label(window, text="CAN interface:       ")
 torque_label = tk.Label(window, text="Steer Torque:       ")
 angle_label = tk.Label(window, text="Steer Angle:       ")
-
 
 # Set the initial values for torque and angle
 initial_torque = torque
@@ -339,12 +341,11 @@ send_button = tk.Button(window, text='Update Torque/Angle value', command=update
 # Place the labels and widgets using grid
 can_label.grid(row=0, column=0, sticky="w")  # set sticky to "w" for left alignment
 can_interface_selector.grid(row=0, column=1, sticky="w")
-can_interface_connect.grid(row=0, column=2, sticky="w")
 torque_label.grid(row=1, column=0, sticky="w")  # set sticky to "w" for left alignment
 torque_widget.grid(row=1, column=1, sticky="w")
 angle_label.grid(row=2, column=0, sticky="w")  # set sticky to "w" for left alignment
 angle_widget.grid(row=2, column=1, sticky="w")
-send_button.grid(row=8, column=0, columnspan=2)
+send_button.grid(row=9, column=0, columnspan=2, pady=(10, 0))
 
 # Function for closing the program elegantly
 def on_closing():
@@ -354,8 +355,9 @@ def on_closing():
 
 # Add the quit button
 quit_button = tk.Button(window, text="Quit", command=on_closing)
-quit_button.grid(row=10, column=0, columnspan=2, pady=10, sticky=tk.N+tk.S+tk.E+tk.W)
+quit_button.grid(row=10, column=0, columnspan=2, pady=(10, 0), sticky=tk.N+tk.S+tk.E+tk.W)
 
+# Trigger events when Esc and Return key are pressed
 window.bind('<Escape>', lambda event: on_closing())
 window.bind('<Return>', lambda event: update_values())
 
